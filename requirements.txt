@@ -20,3 +20,6 @@ requests
 python-dotenv
 aiohttp
 thefuzz
+# --- RAG ve Vektör Veritabanı ---
+chromadb
+sentence-transformers
