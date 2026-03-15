@@ -2,6 +2,8 @@ import os
 import sys
 import datetime
 from llama_cpp import Llama
+import chromadb
+from chromadb.utils import embedding_functions
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -25,36 +27,61 @@ class LLMEngine:
                 n_batch=512,
                 verbose=False
             )
-            print("✅ Sera Zihni Açıldı!\n")
+            print("✅ Sera Zihni Açıldı!")
         except Exception as e:
             print(f"❌ Model Yükleme Hatası: {e}")
-            raise e
+            sys.exit(1)
+
+        print("🧠 RAG Hafızasına Bağlanılıyor...")
+        embedding_model_name = "paraphrase-multilingual-MiniLM-L12-v2"
+        self.sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(model_name=embedding_model_name)
+        
+        db_path = os.path.join(config.DB_FOLDER, "sera_rag_db")
+        self.chroma_client = chromadb.PersistentClient(path=db_path)
+        self.collection = self.chroma_client.get_or_create_collection(
+            name="ev_bilgileri",
+            embedding_function=self.sentence_transformer_ef
+        )
+        print("✅ RAG Hafızası Hazır!\n")
+
+    def search_rag(self, query):
+        """Kullanıcı sorusuna en uygun bilgiyi RAG veritabanından çeker."""
+        try:
+            results = self.collection.query(
+                query_texts=[query],
+                n_results=1
+            )
+            if results['documents'] and results['documents'][0]:
+                return results['documents'][0][0] 
+        except Exception as e:
+            print(f"⚠️ RAG Arama Hatası: {e}")
+        return ""
 
     def generate_response(self, user_input, context=""):
         now = datetime.datetime.now()
         tarih_saat = now.strftime("%d %B %Y, Saat %H:%M")
 
+        rag_bilgisi = self.search_rag(user_input)
+
         system_prompt = (
             f"Tarih: {tarih_saat}.\n"
-            "Senin adın Sera. Sen Türkçe konuşan, zeki, yardımsever ve kibar bir yapay zeka asistanısın.\n"
+            "Senin adın Sera. Sen Türkçe konuşan, zeki, yardımsever ve çevrimdışı çalışan bir akıllı ev asistanısın.\n"
             "Kullanıcının adı Utku Kalender.\n"
             "Kurallar:\n"
-            "1. Sadece Türkçe cevap ver. Asla İngilizce kelime kullanma.\n"
-            "2. Cevapların kısa, net ve anlaşılır olsun.\n"
+            "1. Sadece Türkçe cevap ver.\n"
+            "2. Cevapların doğal, kibar ve kısa olsun.\n"
             "3. Gramer kurallarına uy. 'Ben Sera'sın' deme, 'Ben Sera'yım' de.\n"
-            "4. Kullanıcı 'Benim adım ne?' derse 'Senin adın Utku' de.\n"
-            "5. Halüsinasyon görme, uydurma kelimeler kullanma."
+            "4. Kullanıcı ev hakkında bir şey sorarsa, 'Ev Hakkında Bilgi' kısmındaki veriyi kullanarak kendi cümlelerinle cevapla.\n"
+            "5. Halüsinasyon görme, bilmediğin bir şeyse 'Bu konuda bilgim yok' de."
         )
+
+        if rag_bilgisi:
+            system_prompt += f"\n\nEv Hakkında Bilgi:\n{rag_bilgisi}"
 
         if context:
             system_prompt += f"\n\nGeçmiş Konuşmalar:\n{context}"
 
-        prompt = f"""<|im_start|>system
-{system_prompt}<|im_end|>
-<|im_start|>user
-{user_input}<|im_end|>
-<|im_start|>assistant
-"""
+        prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_input}<|im_end|>\n<|im_start|>assistant\n"
 
         try:
             output = self.model(
@@ -80,4 +107,7 @@ class LLMEngine:
 
 if __name__ == "__main__":
     motor = LLMEngine()
-    print("Test Cevabı:", motor.generate_response("Merhaba, benim adım ne?"))
+    print("\n--- TEST BAŞLIYOR ---")
+    soru = "Çalışma odasının ışıkları gece nasıl çalışıyor?"
+    print(f"Soru: {soru}")
+    print(f"Cevap: {motor.generate_response(soru)}")
