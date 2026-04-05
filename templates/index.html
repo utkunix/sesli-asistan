@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sera AI v2.0</title>
+    <title>Sera AI v2.0 - Akıllı Ev</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* Kaydırma çubuğu özelleştirmesi */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #374151; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
@@ -16,37 +15,35 @@
 </head>
 <body class="bg-gray-900 text-white h-screen flex flex-col items-center justify-center font-sans">
 
-    <div class="w-full max-w-3xl bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col h-[85vh] border border-gray-700">
-        
+    <div class="w-full max-w-3xl bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col h-[90vh] border border-gray-700">
+
         <div class="bg-indigo-600 p-4 flex justify-between items-center shadow-lg z-10">
             <div class="flex items-center gap-2">
-                <i class="fas fa-robot text-2xl"></i>
-                <span class="font-bold text-xl tracking-wide">Sera AI</span>
+                <i class="fas fa-home text-2xl"></i>
+                <span class="font-bold text-xl tracking-wide">Sera AI / Akıllı Ev Merkezi</span>
             </div>
-            <div class="text-xs text-indigo-200 bg-indigo-700 px-2 py-1 rounded">v2.0 / Offline</div>
+            <div class="text-xs text-indigo-200 bg-indigo-700 px-2 py-1 rounded">Offline RAG Mode</div>
         </div>
+
+        <div id="iot-dashboard" class="bg-gray-900 border-b border-gray-700 p-4 grid grid-cols-3 gap-4 shadow-inner">
+            </div>
 
         <div id="chat-box" class="flex-1 p-6 overflow-y-auto space-y-4 bg-gray-900/50">
             <div class="flex justify-start">
                 <div class="bg-gray-700 p-4 rounded-2xl rounded-tl-none max-w-md shadow-md border border-gray-600">
-                    <p class="text-gray-200">Selam Utku! Ben Sera. Arama yapabilirim, sohbet edebilirim.</p>
+                    <p class="text-gray-200">Selam Utku! Evin kontrolleri bende. Ne yapmak istersin?</p>
                 </div>
             </div>
         </div>
 
         <div class="p-6 bg-gray-800 border-t border-gray-700 flex flex-col items-center gap-4 relative">
-            
             <p id="status-text" class="text-indigo-400 text-sm font-medium h-5">Dokun ve Konuş...</p>
-
             <div class="flex items-center gap-8">
-                <button id="voice-btn" onclick="toggleVoice()" 
-                    class="bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-all border border-gray-600"
-                    title="Sesi Aç/Kapat">
+                <button id="voice-btn" onclick="toggleVoice()" class="bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-all border border-gray-600">
                     <i id="voice-icon" class="fas fa-volume-up text-xl"></i>
                 </button>
 
-                <button id="listen-btn" onclick="toggleListening()" 
-                    class="bg-rose-600 hover:bg-rose-500 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-xl transition-all transform hover:scale-105 border-4 border-gray-800 ring-4 ring-rose-600/30">
+                <button id="listen-btn" onclick="toggleListening()" class="bg-rose-600 hover:bg-rose-500 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-xl transition-all transform hover:scale-105 border-4 border-gray-800 ring-4 ring-rose-600/30">
                     <i class="fas fa-microphone text-3xl"></i>
                 </button>
 
@@ -64,12 +61,10 @@
         const listenBtn = document.getElementById("listen-btn");
         let isVoiceOn = true;
 
-        // Ses Butonu Fonksiyonu
         function toggleVoice() {
             isVoiceOn = !isVoiceOn;
             const icon = document.getElementById("voice-icon");
             const btn = document.getElementById("voice-btn");
-
             if (isVoiceOn) {
                 icon.className = "fas fa-volume-up text-xl";
                 btn.classList.remove("text-red-400");
@@ -82,11 +77,9 @@
             ws.send(JSON.stringify({type: "config", voice_active: isVoiceOn}));
         }
 
-        // WebSocket Mesajları
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
 
-            // 1. KULLANICI MESAJI
             if (data.type === "user") {
                 chatBox.innerHTML += `
                     <div class="flex justify-end animate-fade-in">
@@ -94,8 +87,7 @@
                             ${data.text}
                         </div>
                     </div>`;
-            } 
-            // 2. BOT MESAJI
+            }
             else if (data.type === "bot") {
                 chatBox.innerHTML += `
                     <div class="flex justify-start animate-fade-in">
@@ -103,49 +95,50 @@
                             ${data.text}
                         </div>
                     </div>`;
-            } 
-            // 3. ARAMA SONUÇLARI (KARTLAR - GERİ GELDİ)
-            else if (data.type === "search_results") {
-                let cardsHtml = '<div class="flex gap-4 overflow-x-auto pb-4 mt-2 snap-x">';
-                
-                data.data.forEach(item => {
-                    cardsHtml += `
-                        <div class="flex-none w-64 bg-gray-800 p-4 rounded-xl border border-gray-600 shadow-lg snap-center hover:border-indigo-500 transition-colors">
-                            <h4 class="text-indigo-400 font-bold text-sm mb-2 line-clamp-2">${item.title}</h4>
-                            <p class="text-xs text-gray-400 mb-3 line-clamp-3">${item.desc ? item.desc : 'Açıklama yok'}</p>
-                            <a href="${item.url}" target="_blank" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg transition-colors flex items-center justify-center gap-2">
-                                <i class="fas fa-external-link-alt"></i> Siteye Git
-                            </a>
-                        </div>
-                    `;
-                });
-                cardsHtml += '</div>';
-                
-                chatBox.innerHTML += `
-                    <div class="flex flex-col gap-2 animate-fade-in">
-                        <span class="text-xs text-gray-500 ml-2">İnternet Sonuçları:</span>
-                        ${cardsHtml}
-                    </div>`;
             }
-            // 4. BİLGİ MESAJI
             else if (data.type === "info") {
                 statusText.innerText = data.text;
                 statusText.classList.add("text-indigo-400", "animate-pulse");
-                
-                // 3 saniye sonra eski haline dön
                 setTimeout(() => {
                     statusText.innerText = "Dokun ve Konuş...";
                     statusText.classList.remove("text-indigo-400", "animate-pulse");
-                    listenBtn.classList.remove("ring-4", "ring-rose-600/30"); // Efekti kapat
+                    listenBtn.classList.remove("ring-4", "ring-rose-600/30");
                 }, 3000);
             }
-            
-            // Otomatik aşağı kaydır
+            // 🌟 YENİ: Cihaz Durumlarını Ekrana Çizdirme
+            else if (data.type === "device_update") {
+                const dashboard = document.getElementById("iot-dashboard");
+                dashboard.innerHTML = ""; // Öncekileri temizle
+
+                data.data.forEach(device => {
+                    const isAcik = device.status === "Açık";
+                    // Duruma göre renkler
+                    const iconColor = isAcik ? "text-yellow-400" : "text-gray-500";
+                    const bgColor = isAcik ? "bg-gray-700 border-yellow-500" : "bg-gray-800 border-gray-600";
+
+                    // Cihaza göre ikon seçimi
+                    let iconClass = "fas fa-power-off";
+                    if(device.device_id.includes("light")) iconClass = "fas fa-lightbulb";
+                    if(device.device_id.includes("plug")) iconClass = "fas fa-plug";
+                    if(device.device_id.includes("thermostat")) iconClass = "fas fa-temperature-high";
+
+                    dashboard.innerHTML += `
+                        <div class="${bgColor} border p-3 rounded-xl flex items-center justify-between shadow-md transition-all duration-300">
+                            <div>
+                                <p class="text-[10px] text-gray-400 font-bold tracking-wider uppercase">${device.room}</p>
+                                <p class="text-sm font-medium text-gray-200">${device.name}</p>
+                            </div>
+                            <i class="${iconClass} ${iconColor} text-2xl drop-shadow-lg"></i>
+                        </div>
+                    `;
+                });
+            }
+
             chatBox.scrollTop = chatBox.scrollHeight;
         };
 
         function toggleListening() {
-            listenBtn.classList.add("ring-4", "ring-rose-600/50"); // Efekt ekle
+            listenBtn.classList.add("ring-4", "ring-rose-600/50");
             statusText.innerText = "Dinleniyor...";
             ws.send(JSON.stringify({type: "command", action: "start_listening"}));
         }
