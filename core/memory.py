@@ -1,7 +1,6 @@
 import sqlite3
 import os
 import sys
-import json
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
@@ -15,24 +14,47 @@ class MemorySystem:
         self.create_tables()
 
     def create_tables(self):
-        """
-        Gerekli tabloları oluşturur.
-        Şimdilik sadece sohbet geçmişi var.
-        İleride buraya 'iot_devices' tablosu da eklenecek.
-        """
+        """Sohbet geçmişi ve IoT cihazları tablolarını oluşturur."""
+        # Mesajlar Tablosu
         self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                role TEXT,    -- 'user' veya 'bot'
-                content TEXT, -- Mesaj içeriği
+                role TEXT,
+                content TEXT,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # IoT Cihazları Tablosu
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS iot_devices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                device_id TEXT UNIQUE,
+                name TEXT,
+                room TEXT,
+                status TEXT, -- 'Açık' veya 'Kapalı'
+                last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         self.conn.commit()
-        print("💾 Hafıza sistemi (Veritabanı) hazır.")
+        
+        self.cursor.execute("SELECT COUNT(*) FROM iot_devices")
+        if self.cursor.fetchone()[0] == 0:
+            varsayilan_cihazlar = [
+                ("light_calisma", "Ana Aydınlatma", "Çalışma Odası", "Kapalı"),
+                ("plug_mutfak", "Akıllı Priz (Kahve Makinesi)", "Mutfak", "Kapalı"),
+                ("thermostat_salon", "Akıllı Termostat", "Salon", "Açık")
+            ]
+            self.cursor.executemany(
+                "INSERT INTO iot_devices (device_id, name, room, status) VALUES (?, ?, ?, ?)", 
+                varsayilan_cihazlar
+            )
+            self.conn.commit()
+            print("🔌 Varsayılan IoT cihazları veritabanına eklendi.")
+            
+        print("💾 Hafıza ve IoT veritabanı sistemi hazır.")
 
     def add_message(self, role, content):
-        """Yeni bir mesajı hafızaya kaydeder"""
         try:
             self.cursor.execute("INSERT INTO messages (role, content) VALUES (?, ?)", (role, content))
             self.conn.commit()
@@ -40,10 +62,6 @@ class MemorySystem:
             print(f"⚠️ Hafıza Yazma Hatası: {e}")
 
     def get_context(self, limit=5):
-        """
-        Son konuşmaları getirir.
-        limit=5 -> Son 5 mesajı alıp Sera'ya hatırlatır.
-        """
         try:
             self.cursor.execute("SELECT role, content FROM messages ORDER BY id DESC LIMIT ?", (limit,))
             rows = self.cursor.fetchall()
@@ -58,16 +76,6 @@ class MemorySystem:
             print(f"⚠️ Hafıza Okuma Hatası: {e}")
             return ""
 
-    def clear_memory(self):
-        """Hafızayı sıfırlar (Eğitim öncesi temizlik için gerekebilir)"""
-        self.cursor.execute("DELETE FROM messages")
-        self.conn.commit()
-        print("🧹 Hafıza temizlendi.")
-
-# --- Test Bloğu ---
 if __name__ == "__main__":
     mem = MemorySystem()
-    mem.add_message("user", "Merhaba Sera, nasılsın?")
-    mem.add_message("bot", "İyiyim Utku, teşekkürler.")
-    print("--- Mevcut Hafıza ---")
-    print(mem.get_context())
+    print("Sistem başarıyla test edildi.")

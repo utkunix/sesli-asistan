@@ -1,12 +1,14 @@
 import os
 import sys
 import datetime
+import re 
 from llama_cpp import Llama
 import chromadb
 from chromadb.utils import embedding_functions
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
+from core.iot import IoTManager
 
 class LLMEngine:
     def __init__(self):
@@ -43,13 +45,15 @@ class LLMEngine:
             embedding_function=self.sentence_transformer_ef
         )
         print("✅ RAG Hafızası Hazır!\n")
+        
+        self.iot = IoTManager()
 
     def search_rag(self, query):
         """Kullanıcı sorusuna en uygun bilgiyi RAG veritabanından çeker."""
         try:
             results = self.collection.query(
                 query_texts=[query],
-                n_results=1
+                n_results=1 
             )
             if results['documents'] and results['documents'][0]:
                 return results['documents'][0][0] 
@@ -62,6 +66,7 @@ class LLMEngine:
         tarih_saat = now.strftime("%d %B %Y, Saat %H:%M")
 
         rag_bilgisi = self.search_rag(user_input)
+        cihaz_durumlari = self.iot.get_device_states_str()
 
         system_prompt = (
             f"Tarih: {tarih_saat}.\n"
@@ -70,9 +75,16 @@ class LLMEngine:
             "Kurallar:\n"
             "1. Sadece Türkçe cevap ver.\n"
             "2. Cevapların doğal, kibar ve kısa olsun.\n"
-            "3. Gramer kurallarına uy. 'Ben Sera'sın' deme, 'Ben Sera'yım' de.\n"
-            "4. Kullanıcı ev hakkında bir şey sorarsa, 'Ev Hakkında Bilgi' kısmındaki veriyi kullanarak kendi cümlelerinle cevapla.\n"
-            "5. Halüsinasyon görme, bilmediğin bir şeyse 'Bu konuda bilgim yok' de."
+            "3. Gramer kurallarına uy.\n"
+            "4. Kullanıcı ev hakkında bir şey sorarsa, 'Ev Hakkında Bilgi' kısmını kullan.\n"
+            "5. ÇOK ÖNEMLİ: Eğer kullanıcı senden bir cihazı açmanı veya kapatmanı isterse, konuşmanın sonuna ŞU GİZLİ KOMUTU ekle: [KONTROL:cihaz_id:Açık] veya [KONTROL:cihaz_id:Kapalı]. "
+            "Sadece kullanıcının bahsettiği cihazı değiştir. Anlık durumları aşağıda verilmiştir.\n"
+            f"\n--- SİSTEMDEKİ CİHAZLAR VE ANLIK DURUMLARI ---\n{cihaz_durumlari}"
+            "Örnek Kullanım:\n"
+            "Kullanıcı: Mutfak prizini aç.\n"
+            "Asistan: Mutfaktaki akıllı prizi hemen açıyorum. [KONTROL:plug_mutfak:Açık]\n"
+            "Kullanıcı: Çalışma odasının ışıklarını kapat.\n"
+            "Asistan: Çalışma odasının ışıklarını kapattım. [KONTROL:light_calisma:Kapalı]"
         )
 
         if rag_bilgisi:
@@ -96,6 +108,19 @@ class LLMEngine:
             
             response = output["choices"][0]["text"].strip()
             
+            match = re.search(r'\[KONTROL:(.*?):(Açık|Kapalı)\]', response)
+            if match:
+                device_id = match.group(1).strip()
+                yeni_durum = match.group(2).strip()
+                
+                basarili_mi = self.iot.update_device_status(device_id, yeni_durum)
+                if basarili_mi:
+                    print(f"\n🔌 IoT BAŞARILI: {device_id} cihazı {yeni_durum} yapıldı.")
+                else:
+                    print(f"\n⚠️ IoT BAŞARISIZ: {device_id} güncellenemedi.")
+                
+                response = re.sub(r'\[KONTROL:.*?\]', '', response).strip()
+
             response = response.replace("Sera'sın", "Sera'yım")
             response = response.replace("OpenAI", "Utku Kalender")
             
@@ -108,6 +133,11 @@ class LLMEngine:
 if __name__ == "__main__":
     motor = LLMEngine()
     print("\n--- TEST BAŞLIYOR ---")
-    soru = "Çalışma odasının ışıkları gece nasıl çalışıyor?"
+    
+    soru = "Sera, çalışma odasının ışıklarını kapatır mısın?"
     print(f"Soru: {soru}")
-    print(f"Cevap: {motor.generate_response(soru)}")
+    cevap = motor.generate_response(soru)
+    print(f"Sera'nın Cevabı: {cevap}")
+    
+    print("\n--- SON DURUM ---")
+    print(motor.iot.get_device_states_str())
